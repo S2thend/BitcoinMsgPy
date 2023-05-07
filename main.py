@@ -15,11 +15,25 @@ import urllib.request
 import hashlib
 
 def get_myip():
+    """
+    Returns the IP address of the current machine.
+    Fetches the IP address from an external API and returns it as a byte string.
+    """
     myip_str = urllib.request.urlopen('https://api.ipify.org').read().decode()
     myip = socket.inet_aton(myip_str)
     return myip
 
 def version_message(nodeip, myip=get_myip()):
+    """Creates a Bitcoin version message.
+    Args:
+        nodeip (bytes): The IP address of the remote node.
+        myip (bytes): Optional. The IP address of the local node. Defaults to the local IP address.
+    Returns:
+        tuple: A tuple containing:
+            command (bytes): The command ('version').
+            checksum (bytes): The checksum for the payload.
+            payload (bytes): The actual version message payload.
+    """
     # Version number (PROTOCOL_VERSION in core)
     version = int(70015).to_bytes(4, 'little')
 
@@ -55,9 +69,27 @@ def version_message(nodeip, myip=get_myip()):
     )
 
 def add_headers(command, checksum, payload):
+    """
+    Adds command headers to the input payload.
+    Args:
+        command (bytes): The command to add headers for.
+        checksum (bytes): The checksum for the payload.
+        payload (bytes): The actual data payload.
+    Returns:
+        bytes: The payload with command headers added.
+    """
     return MAGIC + command + b'\x00' * (12 - len(command)) + len(payload).to_bytes(4, 'little') + checksum + payload
 
 def pong_msg(nonce):
+    """Creates a Bitcoin pong message.
+    Args:
+        nonce (bytes): The nonce to include in the pong message.
+    Returns:
+        tuple: A tuple containing:
+            command (bytes): The command ('pong').
+            checksum (bytes): The checksum for the payload.
+            payload (bytes): The actual pong message payload containing the nonce.
+    """ 
     return add_headers(
         command='pong'.encode('ascii'),
         checksum=hashlib.sha256(hashlib.sha256(nonce).digest()).digest()[:4],
@@ -65,9 +97,14 @@ def pong_msg(nonce):
     )
 
 def parse_inv_message(message):
-    """
-    解析Bitcoin的inv消息，返回包含对象类型标识和散列值的元组列表。
-    """
+    """Parses a Bitcoin inv message.
+    Args:
+        message (bytes): The raw inv message.
+    Returns:
+        list: A list of tuples containing:
+            object type (int): The type of inventory object (block, tx, etc.)
+            hash (bytes): The hash of the inventory object.
+    """ 
     # 从消息头的第16-20个字节读取消息长度
     msg_len = int.from_bytes(message[16:20], byteorder='little')
 
@@ -89,7 +126,18 @@ def parse_inv_message(message):
     return inventory
 
 def getdata_msg(inv,count=1):
-    # Construct the payload
+    """Creates a Bitcoin getdata message.
+    Args:
+        inv (list): A list of inventory tuples containing:
+            object type (int): The type of inventory object (block, tx, etc.)
+            hash (bytes): The hash of the inventory object.
+        count (int): The number of inventory objects to request. Defaults to 1.
+    Returns:
+        tuple: A tuple containing:
+            command (bytes): The command ('getdata').
+            checksum (bytes): The checksum for the payload.
+            payload (bytes): The actual getdata message payload containing the requested inventory objects.
+    """ 
     payload = count.to_bytes(1, 'little')
     for i in range(count):
         payload += inv[0].to_bytes(4, 'little')
@@ -101,6 +149,18 @@ def getdata_msg(inv,count=1):
     )
 
 def parse_block_message(payload):
+    """Parses a raw block message payload.
+    Args:
+        payload (bytes): The raw block message payload.
+    Returns:
+        dict: A dictionary containing:
+            version (int): The block version number.
+            prev_block (str): The hash of the previous block.
+            merkle_root (str): The merkle root hash.
+            timestamp (int): The block timestamp.
+            bits (int): The target difficulty bits.
+            nonce (int): The block nonce.
+    """ 
     '''
     4	version	int32_t	Block version information (note, this is signed)
     32	prev_block	char[32]	The hash value of the previous block this particular block references
@@ -119,12 +179,27 @@ def parse_block_message(payload):
     return block
 
 def big_little_endian(s):
+    """Converts a hexadecimal string from big endian to little endian.
+    Args:
+        s (str): A hexadecimal string.
+    Returns:
+        str: The string in little endian byte order.
+    """
     result = ''
     for i in range(0, len(s), 2):
         result = s[i] + s[i+1] + result
     return result
 
 def getheaders_msg(blockhash):
+    """Creates a Bitcoin getheaders message.
+    Args:
+        blockhash (str): A block hash.
+    Returns:
+        tuple: A tuple containing:
+            command (bytes): The command ('getheaders').
+            checksum (bytes): The checksum for the payload.
+            payload (bytes): The actual getheaders message payload containing the block hash.
+    """
     # Construct the payload
     version = int(70015).to_bytes(4, 'little')
     num_locator_hashes = b'\x01'
@@ -138,8 +213,17 @@ def getheaders_msg(blockhash):
     )
 
 def parse_headers_message(payload):
-    """
-    解析Bitcoin的headers消息，返回包含块头的列表。
+    """Parses a raw headers message payload.
+    Args:
+        payload (bytes): The raw headers message payload.
+    Returns:
+        list: A list of dictionaries containing:
+            version (int): The block version number.
+            prev_block (str): The hash of the previous block.
+            merkle_root (str): The merkle root hash.
+            timestamp (int): The block timestamp.
+            bits (int): The target difficulty bits.
+            nonce (int): The block nonce.
     """
     # 从payload中解析出块头数量
     payload = payload[1:]
@@ -171,24 +255,27 @@ def parse_headers_message(payload):
 
     return headers
 
-def read_varint(payload):
-    """
-    从payload中读取varint值并返回（varint值，剩余的payload数据）元组。
-    """
-    size = payload[0:1]
-    if size < 0xfd:
-        return size, payload[1:]
-    elif size == 0xfd:
-        return int.from_bytes(payload[1:3], byteorder='little'), payload[3:]
-    elif size == 0xfe:
-        return int.from_bytes(payload[1:5], byteorder='little'), payload[5:]
-    else:
-        return int.from_bytes(payload[1:9], byteorder='little'), payload[9:]
-
-import json
+# TODO: Implement this function
+# def read_varint(payload):
+#     """
+#     从payload中读取varint值并返回（varint值，剩余的payload数据）元组。
+#     """
+#     size = payload[0:1]
+#     if size < 0xfd:
+#         return size, payload[1:]
+#     elif size == 0xfd:
+#         return int.from_bytes(payload[1:3], byteorder='little'), payload[3:]
+#     elif size == 0xfe:
+#         return int.from_bytes(payload[1:5], byteorder='little'), payload[5:]
+#     else:
+#         return int.from_bytes(payload[1:9], byteorder='little'), payload[9:]
 
 
 def message_handler(sock):
+    """Handles messages received on the socket.
+    Args:
+        sock (socket): The connected socket.
+    """ 
     buffer = b''  # Initialize message buffer
 
     while True:
