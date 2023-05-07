@@ -5,6 +5,38 @@ Implenmented using only standard library, no need for install.
 python main.py
 ```
 
+* Wait for receipt of new block information. Could take a long time.
+* Or uncomment print new message to see every message received.
+```py
+            # print("New message:", message)
+```
+## Output Example
+```
+...
+Connected to <ip>
+Error connecting to <ip> timed out
+Connected to <ip>
+Connection closed by remote host
+Connected to <ip>
+block headers: [{'version': 641589248, 'prev_block': '00000000000000000000ef0ea8f134b141687548baebe2a8f5d60b1203071604', 'merkle_root': 'b67b1f6b40075eadf7b46532f4534149e34baa2316f78816a44b9af438022672', 'timestamp': 1683497187, 'bits': 386260225, 'nonce': 3488487704}]
+block headers: [{'version': 641589248, 'prev_block': '00000000000000000000ef0ea8f134b141687548baebe2a8f5d60b1203071604', 'merkle_root': 'b67b1f6b40075eadf7b46532f4534149e34baa2316f78816a44b9af438022672', 'timestamp': 1683497187, 'bits': 386260225, 'nonce': 3488487704}, {'version': 536969216, 'prev_block': '000000000000000000041802d1e36499adfe62219a8fa080ff6a29bfb51145c6', 'merkle_root': '0654a3ed24ec2931dfc73a9a470151d30da56c885c395c88a10477c3b94c00ab', 'timestamp': 1683497376, 'bits': 386260225, 'nonce': 1205314160}]
+Connection closed by remote host
+...
+Connected to <ip>
+Connection closed by remote host
+Connected to <ip>
+block headers: [{'version': 641589248, 'prev_block': '00000000000000000000ef0ea8f134b141687548baebe2a8f5d60b1203071604', 'merkle_root': 'b67b1f6b40075eadf7b46532f4534149e34baa2316f78816a44b9af438022672', 'timestamp': 1683497187, 'bits': 386260225, 'nonce': 3488487704}, {'version': 536969216, 'prev_block': '000000000000000000041802d1e36499adfe62219a8fa080ff6a29bfb51145c6', 'merkle_root': '0654a3ed24ec2931dfc73a9a470151d30da56c885c395c88a10477c3b94c00ab', 'timestamp': 1683497376, 'bits': 386260225, 'nonce': 1205314160}, {'version': 623550464, 'prev_block': '0000000000000000000593b07bbe22e10beaa167806fb92ebdeadd73073baab4', 'merkle_root': 'fc1e2c02b9bee0698fc60b342b5235cd82ad3ab18d878dc5937e3911469be9ec', 'timestamp': 1683497436, 'bits': 386260225, 'nonce': 3423304283}]
+Error connecting to <ip> timed out
+Connected to <ip>
+Connection closed by remote host
+...
+Connected to <ip>
+block headers: [{'version': 641589248, 'prev_block': '00000000000000000000ef0ea8f134b141687548baebe2a8f5d60b1203071604', 'merkle_root': 'b67b1f6b40075eadf7b46532f4534149e34baa2316f78816a44b9af438022672', 'timestamp': 1683497187, 'bits': 386260225, 'nonce': 3488487704}, {'version': 536969216, 'prev_block': '000000000000000000041802d1e36499adfe62219a8fa080ff6a29bfb51145c6', 'merkle_root': '0654a3ed24ec2931dfc73a9a470151d30da56c885c395c88a10477c3b94c00ab', 'timestamp': 1683497376, 'bits': 386260225, 'nonce': 1205314160}, {'version': 623550464, 'prev_block': '0000000000000000000593b07bbe22e10beaa167806fb92ebdeadd73073baab4', 'merkle_root': 'fc1e2c02b9bee0698fc60b342b5235cd82ad3ab18d878dc5937e3911469be9ec', 'timestamp': 1683497436, 'bits': 386260225, 'nonce': 3423304283}, {'version': 543162368, 'prev_block': '000000000000000000013a786fd9532a9a48faf886a576e6ff5d84d84adf8f48', 'merkle_root': 'ad98240e3589724e06836d47b028d57915c81e197f65db849ebbe7f0c774d982', 'timestamp': 1683498298, 'bits': 386260225, 'nonce': 1894048264}]
+Connection closed by remote host
+...
+```
+
+
 
 # Message Handling Functions
 ## version_message(nodeip, myip=get_myip())

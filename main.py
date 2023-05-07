@@ -112,7 +112,7 @@ def parse_inv_message(message):
     # 去掉消息头
     message = message[24:]
 
-    print("count:",int.from_bytes(message[:1], byteorder='little'))
+    # print("count:",int.from_bytes(message[:1], byteorder='little'))
     message = message[1:]
 
     i = 0
@@ -301,13 +301,13 @@ def message_handler(sock):
             buffer = buffer[message_end:]  # Remove the message from the buffer
 
             # Print the new message
-            print("New message:", message)
+            # print("New message:", message)
 
             if message.find(b'ping') != -1:
                 sock.sendall(pong_msg(message[24:32]))
             elif message.find(b'inv') != -1:
                 invs = parse_inv_message(message)
-                print("inv list:", invs)
+                # print("inv list:", invs)
                 for inv in invs:
                     if inv[0] == 2:
                         sock.sendall(getdata_msg(inv))
@@ -325,7 +325,6 @@ def message_handler(sock):
                 block_header = parse_block_message(message[24:])
                 BLOCK_HEADERS.append(block_header)
                 print("block headers:", BLOCK_HEADERS)
-                raise Exception("headers")
             elif message.find(b'getheaders') != -1:
                 pass
             elif message.find(b'sendheaders') != -1:
@@ -333,21 +332,11 @@ def message_handler(sock):
             elif message.find(b'headers') != -1:
                 headers = parse_headers_message(message[24:])
                 # print("headers:", headers)
-                print("headers:", headers)
-                with open('out.json', 'w', encoding ='utf8') as json_file:
-                    json.dump(headers[0], json_file, ensure_ascii = False)
-                raise Exception("headers")
 
 
     # If there is a message left in the buffer, print it before exiting
     if len(buffer) > 0:
-        if message.find(b'headers') != -1:
-                headers = parse_headers_message(message[24:])
-                headers = str(headers)
-                # print("headers:", headers)
-                with open("file.txt", "a") as f:
-                    f.write(headers + "\n")
-                print("headers:")
+        pass
         # print("Last message:", buffer)
 
 
@@ -367,22 +356,23 @@ if __name__ == '__main__':
     # 输出查询到的IP地址
     print("Seed nodes IP addresses:", ips)
 
-    for ip in ips:
-        # 创建socket连接
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(20)
-        try:
-            # 连接到节点
-            sock.connect((ip, 8333))
-            print("Connected to", ip)
-            # 发送version消息
-            sock.sendall(add_headers(*version_message(socket.inet_aton(ip))))
-            sock.sendall(VERACK)
-            # sock.sendall(getheaders_msg(big_little_endian('00000000000000000000e3ef748217eba564fb5075e6f18fc7cbfc98db5ea844')))
-            # 接收version消息
-            message_handler(sock)
-        except TimeoutError as e:
-            print("Error connecting to", ip, e)
-            continue
-        finally:
-            sock.close()
+    while True:
+        for ip in ips:
+            # 创建socket连接
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(20)
+            try:
+                # 连接到节点
+                sock.connect((ip, 8333))
+                print("Connected to", ip)
+                # 发送version消息
+                sock.sendall(add_headers(*version_message(socket.inet_aton(ip))))
+                sock.sendall(VERACK)
+                # sock.sendall(getheaders_msg(big_little_endian('00000000000000000000e3ef748217eba564fb5075e6f18fc7cbfc98db5ea844')))
+                # 接收version消息
+                message_handler(sock)
+            except Exception as e:
+                print("Error connecting to", ip, e)
+                continue
+            finally:
+                sock.close()
