@@ -55,8 +55,20 @@ def version_message(nodeip, myip=get_myip()):
 def add_headers(command, checksum, payload):
     return MAGIC + command + b'\x00' * (12 - len(command)) + len(payload).to_bytes(4, 'little') + checksum + payload
 
+def pong_msg(nonce):
+    return add_headers(
+        command='pong'.encode('ascii'),
+        checksum=hashlib.sha256(hashlib.sha256(nonce).digest()).digest()[:4],
+        payload=nonce
+    )
 
-def receive_messages(sock):
+class MessageHandler:
+    def __init__(self, command, get_msg):
+        self.command = command
+        self.get_msg = get_msg
+
+
+def message_handler(sock, handlers):
     buffer = b''  # Initialize message buffer
     last_message = None  # Initialize last message variable
 
@@ -70,7 +82,7 @@ def receive_messages(sock):
         buffer += data  # Append new data to the buffer
 
         # Find the start of the next message
-        message_start = buffer.find(b'\xf9\xbe\xb4\xd9')
+        message_start = 0
 
         while message_start != -1:  # While there are messages in the buffer
             # Find the end of the message
@@ -82,21 +94,12 @@ def receive_messages(sock):
             message = buffer[message_start:message_end]  # Extract the message
             buffer = buffer[message_end:]  # Remove the message from the buffer
 
-            if last_message is not None:  # If there is a previous message, print it
-                print("Previous message:", last_message)
-
             # Print the new message
             print("New message:", message)
 
-            # Store the last message
-            last_message = message
+            if message.find(b'ping') != -1:
+                sock.sendall(pong_msg(message[24:32]))
 
-            # Find the start of the next message
-            message_start = buffer.find(b'\xf9\xbe\xb4\xd9')
-
-        if message_start == -1 and last_message is not None:  # If there is a previous message, print it
-            print("Previous message:", last_message)
-            last_message = None
 
     # If there is a message left in the buffer, print it before exiting
     if len(buffer) > 0:
@@ -122,7 +125,7 @@ if __name__ == '__main__':
     for ip in ips:
         # 创建socket连接
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
+        sock.settimeout(20)
         try:
             # 连接到节点
             sock.connect((ip, 8333))
@@ -131,7 +134,7 @@ if __name__ == '__main__':
             sock.sendall(add_headers(*version_message(socket.inet_aton(ip))))
             sock.sendall(VERACK)
             # 接收version消息
-            print(receive_messages(sock))
+            message_handler(sock)
         except Exception as e:
             print("Error connecting to", ip, e)
             continue
