@@ -7,6 +7,8 @@ SEED_DNS = [
 MAGIC = b'\xf9\xbe\xb4\xd9'
 VERACK = b'\xf9\xbe\xb4\xd9\x76\x65\x72\x61\x63\x6b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x5d\xf6\xe0\xe2'
 
+BLOCK_HEADERS = []
+
 import socket
 import time
 import urllib.request
@@ -68,19 +70,10 @@ def parse_inv_message(message):
     """
     # 从消息头的第16-20个字节读取消息长度
     msg_len = int.from_bytes(message[16:20], byteorder='little')
-    # 计算余数
-    remainder = (msg_len - 24) % 36
 
     inventory = []
     # 去掉消息头
     message = message[24:]
-    # # 如果有余数，则保留余数中的一部分数据
-    # if remainder > 0:
-    #     # 读取余数数量的字节并转换为整数
-    #     remainder_num = int.from_bytes(message[:remainder], byteorder='little')
-    #     print("count:", remainder_num)
-    #     # 去掉余数      
-    #     message = message[remainder:]
 
     print("count:",int.from_bytes(message[:1], byteorder='little'))
     message = message[1:]
@@ -95,8 +88,104 @@ def parse_inv_message(message):
 
     return inventory
 
+def getdata_msg(inv,count=1):
+    # Construct the payload
+    payload = count.to_bytes(1, 'little')
+    for i in range(count):
+        payload += inv[0].to_bytes(4, 'little')
+        payload += inv[1]
+    return add_headers(
+        command='getdata'.encode('ascii'),
+        checksum=hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4],
+        payload=payload
+    )
 
+def parse_block_message(payload):
+    '''
+    4	version	int32_t	Block version information (note, this is signed)
+    32	prev_block	char[32]	The hash value of the previous block this particular block references
+    32	merkle_root	char[32]	The reference to a Merkle tree collection which is a hash of all transactions related to this block
+    4	timestamp	uint32_t	A Unix timestamp recording when this block was created (Currently limited to dates before the year 2106!)
+    4	bits	uint32_t	The calculated difficulty target being used for this block
+    4	nonce	uint32_t	The nonce used to generate this block… to allow variations of the header and compute different hashes
+    '''
+    block = {}
+    block['version'] = int.from_bytes(payload[:4], byteorder='little')
+    block['prev_block'] = big_little_endian(payload[4:36].hex())
+    block['merkle_root'] = big_little_endian(payload[36:68].hex())
+    block['timestamp'] = int.from_bytes(payload[68:72], byteorder='little')
+    block['bits'] = int.from_bytes(payload[72:76], byteorder='little')
+    block['nonce'] = int.from_bytes(payload[76:80], byteorder='little')
+    return block
 
+def big_little_endian(s):
+    result = ''
+    for i in range(0, len(s), 2):
+        result = s[i] + s[i+1] + result
+    return result
+
+def getheaders_msg(blockhash):
+    # Construct the payload
+    version = int(70015).to_bytes(4, 'little')
+    num_locator_hashes = b'\x01'
+    locator_hashes = bytes.fromhex(blockhash)
+    hash_stop = b'\x00' * 32
+    payload = version + num_locator_hashes + locator_hashes + hash_stop
+    return add_headers(
+        command='getheaders'.encode('ascii'),
+        checksum=hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4],
+        payload=payload
+    )
+
+def parse_headers_message(payload):
+    """
+    解析Bitcoin的headers消息，返回包含块头的列表。
+    """
+    # 从payload中解析出块头数量
+    payload = payload[1:]
+
+    headers = []
+    # 解析每个块头
+    while len(payload) > 81:
+        # 从payload中读取块头数据
+        version = int.from_bytes(payload[0:4], byteorder='little')
+        prev_block = payload[4:36]
+        merkle_root = payload[36:68]
+        timestamp = int.from_bytes(payload[68:72], byteorder='little')
+        bits = int.from_bytes(payload[72:76], byteorder='little')
+        nonce = int.from_bytes(payload[76:80], byteorder='little')
+
+        # 将块头数据保存为字典
+        header = {
+            'version': version,
+            'prev_block': prev_block.hex(),
+            'merkle_root': merkle_root.hex(),
+            'timestamp': timestamp,
+            'bits': bits,
+            'nonce': nonce
+        }
+        headers.append(header)
+
+        # 更新payload数据
+        payload = payload[81:]
+
+    return headers
+
+def read_varint(payload):
+    """
+    从payload中读取varint值并返回（varint值，剩余的payload数据）元组。
+    """
+    size = payload[0:1]
+    if size < 0xfd:
+        return size, payload[1:]
+    elif size == 0xfd:
+        return int.from_bytes(payload[1:3], byteorder='little'), payload[3:]
+    elif size == 0xfe:
+        return int.from_bytes(payload[1:5], byteorder='little'), payload[5:]
+    else:
+        return int.from_bytes(payload[1:9], byteorder='little'), payload[9:]
+
+import json
 
 
 def message_handler(sock):
@@ -130,12 +219,49 @@ def message_handler(sock):
             if message.find(b'ping') != -1:
                 sock.sendall(pong_msg(message[24:32]))
             elif message.find(b'inv') != -1:
-                print("inv list:", parse_inv_message(message))
+                invs = parse_inv_message(message)
+                print("inv list:", invs)
+                for inv in invs:
+                    if inv[0] == 2:
+                        sock.sendall(getdata_msg(inv))
+            elif message.find(b'getblocks') != -1:
+                pass
+            elif message.find(b'merkleblock') != -1:
+                pass
+            elif message.find(b'cmpctblock') != -1:
+                pass
+            elif message.find(b'getblocktxn') != -1:
+                pass
+            elif message.find(b'blocktxn') != -1:
+                pass
+            elif message.find(b'block') != -1:
+                block_header = parse_block_message(message[24:])
+                BLOCK_HEADERS.append(block_header)
+                print("block headers:", BLOCK_HEADERS)
+                raise Exception("headers")
+            elif message.find(b'getheaders') != -1:
+                pass
+            elif message.find(b'sendheaders') != -1:
+                pass
+            elif message.find(b'headers') != -1:
+                headers = parse_headers_message(message[24:])
+                # print("headers:", headers)
+                print("headers:", headers)
+                with open('out.json', 'w', encoding ='utf8') as json_file:
+                    json.dump(headers[0], json_file, ensure_ascii = False)
+                raise Exception("headers")
 
 
     # If there is a message left in the buffer, print it before exiting
     if len(buffer) > 0:
-        print("Last message:", buffer)
+        if message.find(b'headers') != -1:
+                headers = parse_headers_message(message[24:])
+                headers = str(headers)
+                # print("headers:", headers)
+                with open("file.txt", "a") as f:
+                    f.write(headers + "\n")
+                print("headers:")
+        # print("Last message:", buffer)
 
 
 
@@ -157,7 +283,7 @@ if __name__ == '__main__':
     for ip in ips:
         # 创建socket连接
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(120)
+        sock.settimeout(20)
         try:
             # 连接到节点
             sock.connect((ip, 8333))
@@ -165,9 +291,10 @@ if __name__ == '__main__':
             # 发送version消息
             sock.sendall(add_headers(*version_message(socket.inet_aton(ip))))
             sock.sendall(VERACK)
+            # sock.sendall(getheaders_msg(big_little_endian('00000000000000000000e3ef748217eba564fb5075e6f18fc7cbfc98db5ea844')))
             # 接收version消息
             message_handler(sock)
-        except Exception as e:
+        except TimeoutError as e:
             print("Error connecting to", ip, e)
             continue
         finally:
