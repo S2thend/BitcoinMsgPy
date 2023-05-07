@@ -62,15 +62,45 @@ def pong_msg(nonce):
         payload=nonce
     )
 
-class MessageHandler:
-    def __init__(self, command, get_msg):
-        self.command = command
-        self.get_msg = get_msg
+def parse_inv_message(message):
+    """
+    解析Bitcoin的inv消息，返回包含对象类型标识和散列值的元组列表。
+    """
+    # 从消息头的第16-20个字节读取消息长度
+    msg_len = int.from_bytes(message[16:20], byteorder='little')
+    # 计算余数
+    remainder = (msg_len - 24) % 36
+
+    inventory = []
+    # 去掉消息头
+    message = message[24:]
+    # # 如果有余数，则保留余数中的一部分数据
+    # if remainder > 0:
+    #     # 读取余数数量的字节并转换为整数
+    #     remainder_num = int.from_bytes(message[:remainder], byteorder='little')
+    #     print("count:", remainder_num)
+    #     # 去掉余数      
+    #     message = message[remainder:]
+
+    print("count:",int.from_bytes(message[:1], byteorder='little'))
+    message = message[1:]
+
+    i = 0
+    # 解析散列值
+    while i < len(message):
+        obj_type = message[i:i+4]
+        hash_value = message[i+4:i+36]
+        inventory.append((int.from_bytes(obj_type,byteorder="little"), hash_value))
+        i += 36
+
+    return inventory
 
 
-def message_handler(sock, handlers):
+
+
+
+def message_handler(sock):
     buffer = b''  # Initialize message buffer
-    last_message = None  # Initialize last message variable
 
     while True:
         data = sock.recv(1024)  # Receive data
@@ -99,6 +129,8 @@ def message_handler(sock, handlers):
 
             if message.find(b'ping') != -1:
                 sock.sendall(pong_msg(message[24:32]))
+            elif message.find(b'inv') != -1:
+                print("inv list:", parse_inv_message(message))
 
 
     # If there is a message left in the buffer, print it before exiting
@@ -125,7 +157,7 @@ if __name__ == '__main__':
     for ip in ips:
         # 创建socket连接
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(20)
+        sock.settimeout(120)
         try:
             # 连接到节点
             sock.connect((ip, 8333))
